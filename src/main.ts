@@ -33,9 +33,7 @@ import {
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
 app.innerHTML = /*html*/ `
-<div class='wrapper'>
 <canvas>
-</div>
 `;
 
 const canvasEl = app.querySelector("canvas")!;
