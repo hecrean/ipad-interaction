@@ -93,16 +93,6 @@ const pointerover$ = fromEvent<HTMLElementEventMap["pointerover"]>(
 
 const wheel$ = fromEvent<HTMLElementEventMap["wheel"]>(canvasEl, "wheel");
 
-/*
-Collect clicks that occur, after 250ms emit array of clicks
-*/
-
-// const doubleclick1$ = pointerdown$.pipe(
-//   buffer(scissor$),
-//   // if array is greater than 1, double click occured
-//   filter((clickArray) => clickArray.length > 1)
-// );
-
 const doubleclick$ = pointerdown$.pipe(
   buffer(pointerdown$.pipe(throttleTime(250))),
   // if array is greater than 1, double click occured
@@ -143,16 +133,6 @@ const clickdistance$ = pointerdown$.pipe(
   })
 );
 
-// const verticallyDragging$ = dragging$.pipe(
-//   scan(
-//     ({ DX, DY }, { dx, dy }) => ({
-//       DX: DX + dx,
-//       DY: DY + dy,
-//     }),
-//     { DX: 0, DY: 0 }
-//   )
-// );
-
 const verticallyDragging$ = dragging$.pipe(
   filter(({ dx, dy }) => Math.abs(dy) >= Math.abs(dx) && Math.abs(dy) >= 0.3)
 );
@@ -161,4 +141,7 @@ const horizontallyDragging$ = dragging$.pipe(
   filter(({ dx, dy }) => Math.abs(dy) <= Math.abs(dx) && Math.abs(dy) >= 0.3)
 );
 
-const pinch$ = dragging$;
+doubleclick$.subscribe((v) => `double click ${v}`);
+clickdistance$.subscribe((v) => `click distance ${v}`);
+verticallyDragging$.subscribe((v) => `vertically dragging: ${v}`);
+horizontallyDragging$.subscribe((v) => `horizontally dragging: ${v}`);
