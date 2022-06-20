@@ -9,7 +9,6 @@ body {
   padding: 0;
   overscroll-behavior: none;
   overflow: disabled;
-
 }
 
 #app {
@@ -18,6 +17,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
   width: 100%;
   height: 100%;
+  overflow: disabled;
 }
 
 
@@ -25,4 +25,5 @@ canvas {
   width: 100%;
   height: 100%;
   background-color: orange;
+  overflow: disabled;
 }

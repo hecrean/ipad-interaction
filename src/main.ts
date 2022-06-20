@@ -98,6 +98,7 @@ const doubleclick$ = pointerdown$.pipe(
 );
 
 const dragging$ = pointerdown$.pipe(
+  tap((e) => e.preventDefault()),
   switchMap((pointerdownEv) =>
     pointermove$.pipe(
       filter(
