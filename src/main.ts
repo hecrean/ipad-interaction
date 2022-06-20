@@ -103,7 +103,7 @@ const dragging$ = pointerdown$.pipe(
   switchMap((pointerdownEv) =>
     pointermove$.pipe(
       filter(
-        (pointermoveEv) => pointerdownEv.pointerId !== pointermoveEv.pointerId
+        (pointermoveEv) => pointerdownEv.pointerId === pointermoveEv.pointerId
       ),
       map((pointermoveEv) => {
         const { x: x1, y: y1 } = ndc(pointerdownEv);
@@ -150,7 +150,7 @@ const horizontallyDragging$ = dragging$.pipe(
   filter(({ dx, dy }) => Math.abs(dy) <= Math.abs(dx) && Math.abs(dy) >= 0.3)
 );
 
-dragging$.subscribe((v) => console.log(`drag:  ${v}`));
+dragging$.subscribe(console.log);
 // clickdistance$.subscribe((v) => console.log(`click distance ${v}`));
 // verticallyDragging$.subscribe((v) => console.log(`vertically dragging: ${v}`));
 // horizontallyDragging$.subscribe((v) =>
