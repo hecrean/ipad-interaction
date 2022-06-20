@@ -9,6 +9,7 @@ body, #root {
   padding: 0;
   overscroll-behavior: none;
   overflow: clip;
+  touch-action: none;
 }
 
 body {
