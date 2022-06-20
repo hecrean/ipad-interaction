@@ -31,6 +31,6 @@ body {
 canvas {
   width: 100%;
   height: 100%;
-  background-color: purple;
+  background-color: yellowgreen;
   overscroll-behavior: contain;
 }
