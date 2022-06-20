@@ -100,16 +100,25 @@ const doubleclick$ = pointerdown$.pipe(
 );
 
 const dragging$ = pointerdown$.pipe(
-  tap((dragStartEv) => {
-    dragStartEv.preventDefault();
-  }),
-  switchMap((dragStartEv) =>
+  switchMap((pointerdownEv) =>
     pointermove$.pipe(
-      map((dragMoveEv) => {
-        const { x: x1, y: y1 } = ndc(dragStartEv);
-        const { x: x2, y: y2 } = ndc(dragMoveEv);
+      filter(
+        (pointermoveEv) => pointerdownEv.pointerId !== pointermoveEv.pointerId
+      ),
+      map((pointermoveEv) => {
+        const { x: x1, y: y1 } = ndc(pointerdownEv);
+        const { x: x2, y: y2 } = ndc(pointermoveEv);
+
+        //integrate the pressure and touch contact area over time ?
 
         return {
+          id: pointerdownEv.pointerId,
+          type: pointerdownEv.pointerType,
+          dt: pointermoveEv.timeStamp - pointerdownEv.timeStamp,
+          dP: pointermoveEv.pressure - pointerdownEv.pressure,
+          dA:
+            pointermoveEv.width * pointermoveEv.height -
+            pointerdownEv.width * pointerdownEv.height,
           dx: x2 - x1,
           dy: y2 - y1,
         };
@@ -141,9 +150,22 @@ const horizontallyDragging$ = dragging$.pipe(
   filter(({ dx, dy }) => Math.abs(dy) <= Math.abs(dx) && Math.abs(dy) >= 0.3)
 );
 
-doubleclick$.subscribe((v) => console.log(`double click ${v}`));
-clickdistance$.subscribe((v) => console.log(`click distance ${v}`));
-verticallyDragging$.subscribe((v) => console.log(`vertically dragging: ${v}`));
-horizontallyDragging$.subscribe((v) =>
-  console.log(`horizontally dragging: ${v}`)
-);
+dragging$.subscribe((v) => console.log(`drag:  ${v}`));
+// clickdistance$.subscribe((v) => console.log(`click distance ${v}`));
+// verticallyDragging$.subscribe((v) => console.log(`vertically dragging: ${v}`));
+// horizontallyDragging$.subscribe((v) =>
+//   console.log(`horizontally dragging: ${v}`)
+// );
+
+// const process = ({
+//   pointerId,
+//   pointerType,
+//   pressure,
+//   tiltX,
+//   tiltY,
+//   timeStamp,
+//   width,
+//   height,
+// }: PointerEvent) => {
+
+// };
