@@ -141,7 +141,9 @@ const horizontallyDragging$ = dragging$.pipe(
   filter(({ dx, dy }) => Math.abs(dy) <= Math.abs(dx) && Math.abs(dy) >= 0.3)
 );
 
-doubleclick$.subscribe((v) => `double click ${v}`);
-clickdistance$.subscribe((v) => `click distance ${v}`);
-verticallyDragging$.subscribe((v) => `vertically dragging: ${v}`);
-horizontallyDragging$.subscribe((v) => `horizontally dragging: ${v}`);
+doubleclick$.subscribe((v) => console.log(`double click ${v}`));
+clickdistance$.subscribe((v) => console.log(`click distance ${v}`));
+verticallyDragging$.subscribe((v) => console.log(`vertically dragging: ${v}`));
+horizontallyDragging$.subscribe((v) =>
+  console.log(`horizontally dragging: ${v}`)
+);
