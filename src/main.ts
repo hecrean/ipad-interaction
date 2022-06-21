@@ -1,4 +1,5 @@
 import "./style.css";
+import { vec2 } from "gl-matrix";
 
 import { findFirst, Predicate } from "./utils";
 import {
@@ -29,6 +30,7 @@ import {
   pairwise,
   share,
   startWith,
+  reduce,
 } from "rxjs/operators";
 import { LRUCache } from "./cache";
 
@@ -99,18 +101,6 @@ const doubletap$ = pointerdown$.pipe(
   filter((clickArray) => clickArray.length > 1)
 );
 
-type DraggingRtrn = {
-  id: number;
-  isPrimary: boolean;
-  type: string;
-  dt: number;
-  dP1: number;
-  dP2: number;
-  dA: number;
-  dx: number;
-  dy: number;
-};
-
 const dragging$ = pointerdown$.pipe(
   tap((e) => e.preventDefault()),
   switchMap((pointerdownEv) =>
@@ -137,11 +127,21 @@ const dragging$ = pointerdown$.pipe(
             pointerdownEv.width * pointerdownEv.height,
           dx: x2 - x1,
           dy: y2 - y1,
+          x: x1,
+          y: y1,
         };
       }),
       takeUntil(pointerup$)
     )
   )
+);
+
+const verticalswipe$ = dragging$.pipe(
+  filter(({ dx, dy }) => Math.abs(dy) >= Math.abs(dx) && Math.abs(dy) >= 0.3)
+);
+
+const horizontalswipe$ = dragging$.pipe(
+  filter(({ dx, dy }) => Math.abs(dy) <= Math.abs(dx) && Math.abs(dy) >= 0.3)
 );
 
 const twotaps$ = pointerdown$.pipe(
@@ -156,19 +156,9 @@ const twotaps$ = pointerdown$.pipe(
   })
 );
 
-// const cacheApi = {
-//   set: (key: number, value: DraggingRtrn, cache: Map<string, DraggingRtrn>) => {
-//     value.isPrimary
-//       ? cache.set("primary", value)
-//       : cache.set(key.toString(), value);
-//   },
-//   flush: (cache: Map<string, DraggingRtrn>) => {
-//     const keys = Array.from(cache.keys()).filter((k) => k !== "primary");
-//     const tail = <T>(arr: Array<T>) => arr.slice(0, 3);
-//     const keysToBeDeleted = tail(keys.sort((a, b) => +a - +b));
-//     keysToBeDeleted.map((k) => cache.delete(k));
-//   },
-// };
+type UnwrapObservable<T> = T extends Observable<infer R> ? R : never;
+
+type TouchingPointer = UnwrapObservable<typeof dragging$>;
 
 const multitouch$ = dragging$.pipe(
   scan(
@@ -177,8 +167,8 @@ const multitouch$ = dragging$.pipe(
       cache.set(key, curr);
       return cache;
     },
-    new LRUCache<string, DraggingRtrn>({
-      maxSize: 10,
+    new LRUCache<string, TouchingPointer>({
+      maxSize: 4,
       entryExpirationTimeInMS: 2000,
       onEntryEvicted: ({ key, value, isExpired }) =>
         console.log(
@@ -189,18 +179,39 @@ const multitouch$ = dragging$.pipe(
           `Entry with key ${key} and value ${value} was just marked as most recently used.`
         ),
     })
-  )
+  ),
+  map((cache) => {
+    const array: Array<TouchingPointer> = [];
+    for (const el of cache.entries()) {
+      array.push(el.value);
+    }
+    return array;
+  })
 );
 
-const verticalswipe$ = dragging$.pipe(
-  filter(({ dx, dy }) => Math.abs(dy) >= Math.abs(dx) && Math.abs(dy) >= 0.3)
-);
+const sum = (arr: Array<number>) => arr.reduce((a, b) => a + b, 0);
 
-const horizontalswipe$ = dragging$.pipe(
-  filter(({ dx, dy }) => Math.abs(dy) <= Math.abs(dx) && Math.abs(dy) >= 0.3)
-);
+const centroid = (arr: Array<TouchingPointer>) => {
+  const xMean = sum(arr.map((arr) => arr.x));
+  const yMean = sum(arr.map((arr) => arr.y));
+  const len = arr.length;
+  return vec2.fromValues(xMean / len, yMean / len);
+};
 
-// const pinch$ =
+const direction = (arr: Array<TouchingPointer>) => {
+  const c = centroid(arr);
+
+  return arr.map((a) => ({
+    r: vec2.add(
+      vec2.create(),
+      vec2.mul(vec2.create(), c, vec2.fromValues(-1, -1)),
+      vec2.fromValues(a.x, a.y)
+    ),
+    dr: vec2.fromValues(a.dx, a.dy),
+  }));
+};
+
+const pinch$ = multitouch$.pipe(map(direction));
 
 // const pan$ =
 
@@ -229,4 +240,4 @@ const horizontalswipe$ = dragging$.pipe(
 
 // };
 
-multitouch$.subscribe((t) => console.log(Array.from(t.values())));
+pinch$.subscribe((t) => console.log(Array.from(t.values())));
