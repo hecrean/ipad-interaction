@@ -168,9 +168,16 @@ const multitouch$ = dragging$.pipe(
         cache[curr.id] = curr;
         break;
       case "Some":
-        if (curr.isPrimary && curr.id > cachedPrimaryPointer.value.id) {
-          cache = {};
-          cache[curr.id] = curr;
+        if (curr.isPrimary) {
+          if (curr.id === cachedPrimaryPointer.value.id) cache[curr.id] = curr;
+          if (curr.id < cachedPrimaryPointer.value.id) {
+            // cache = {};
+            // cache[curr.id] = curr;
+          }
+          if (curr.id > cachedPrimaryPointer.value.id) {
+            cache = {};
+            cache[curr.id] = curr;
+          }
         } else {
           cache[curr.id] = curr;
         }
