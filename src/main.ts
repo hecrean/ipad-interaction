@@ -252,5 +252,5 @@ const dot$ = pointerstrajectory$.pipe(map((arr) => arr.map(dot)));
 
 // };
 
-dot$.subscribe(console.log);
-cross$.subscribe(console.log);
+dot$.subscribe((v) => console.log("dot", v));
+cross$.subscribe((v) => console.log("cross", v));
