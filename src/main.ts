@@ -168,8 +168,8 @@ const multitouch$ = dragging$.pipe(
       return cache;
     },
     new LRUCache<string, TouchingPointer>({
-      maxSize: 4,
-      entryExpirationTimeInMS: 2000,
+      maxSize: 3,
+      entryExpirationTimeInMS: 5000,
       onEntryEvicted: ({ key, value, isExpired }) =>
         console.log(
           `Entry with key ${key} and value ${value} was evicted from the cache. Expired: ${isExpired}`
@@ -211,7 +211,7 @@ const direction = (arr: Array<TouchingPointer>) => {
   }));
 };
 
-const pinch$ = multitouch$.pipe(map(direction));
+const pointerstrajectory$ = multitouch$.pipe(map(direction));
 
 // const pan$ =
 
@@ -240,4 +240,4 @@ const pinch$ = multitouch$.pipe(map(direction));
 
 // };
 
-pinch$.subscribe((t) => console.log(Array.from(t.values())));
+pointerstrajectory$.subscribe(console.log);
