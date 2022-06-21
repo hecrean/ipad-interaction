@@ -67,7 +67,7 @@ interface Interaction {
 // observables:
 
 // -- time :
-const scissor$ = interval(300);
+const scissor$ = interval(500);
 const relativeTime$: Observable<[Date, Date]> = interval(1000).pipe(
   map(() => new Date()),
   share(),
@@ -252,5 +252,5 @@ const dot$ = pointerstrajectory$.pipe(map((arr) => arr.map(dot)));
 
 // };
 
-dot$.subscribe((v) => console.log("dot", v));
+dot$.pipe(buffer(scissor$)).subscribe((v) => console.log("dot", v));
 // cross$.subscribe((v) => console.log("cross", v));
