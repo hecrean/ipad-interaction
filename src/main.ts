@@ -1,5 +1,6 @@
 import "./style.css";
 
+import { findFirst, Predicate } from "./utils";
 import {
   of,
   map,
@@ -91,11 +92,23 @@ const pointerover$ = fromEvent<HTMLElementEventMap["pointerover"]>(
 
 const wheel$ = fromEvent<HTMLElementEventMap["wheel"]>(canvasEl, "wheel");
 
-const doubleclick$ = pointerdown$.pipe(
+const doubletap$ = pointerdown$.pipe(
   buffer(pointerdown$.pipe(throttleTime(250))),
   // if array is greater than 1, double click occured
   filter((clickArray) => clickArray.length > 1)
 );
+
+type DraggingRtrn = {
+  id: number;
+  isPrimary: boolean;
+  type: string;
+  dt: number;
+  dP1: number;
+  dP2: number;
+  dA: number;
+  dx: number;
+  dy: number;
+};
 
 const dragging$ = pointerdown$.pipe(
   tap((e) => e.preventDefault()),
@@ -112,9 +125,12 @@ const dragging$ = pointerdown$.pipe(
 
         return {
           id: pointerdownEv.pointerId,
+          isPrimary: pointerdownEv.isPrimary,
           type: pointerdownEv.pointerType,
           dt: pointermoveEv.timeStamp - pointerdownEv.timeStamp,
-          dP: pointermoveEv.pressure - pointerdownEv.pressure,
+          dP1: pointermoveEv.pressure - pointerdownEv.pressure,
+          dP2:
+            pointermoveEv.tangentialPressure - pointerdownEv.tangentialPressure,
           dA:
             pointermoveEv.width * pointermoveEv.height -
             pointerdownEv.width * pointerdownEv.height,
@@ -127,9 +143,7 @@ const dragging$ = pointerdown$.pipe(
   )
 );
 
-const pointerdownCoords$ = pointerdown$.pipe(map(ndc));
-
-const clickdistance$ = pointerdown$.pipe(
+const twotaps$ = pointerdown$.pipe(
   map(ndc),
   pairwise(),
   map(([first, second]) => {
@@ -141,15 +155,49 @@ const clickdistance$ = pointerdown$.pipe(
   })
 );
 
-const verticallyDragging$ = dragging$.pipe(
+const multitouch$ = dragging$.pipe(
+  scan((cache, curr) => {
+    // primary pointer is our pivot point. We reset each time this is taken up
+    const cacheHasAPrimayPointer: Predicate<DraggingRtrn> = (a) => a.isPrimary;
+    const cachedPrimaryPointer = findFirst(cacheHasAPrimayPointer)(
+      Object.values(cache)
+    );
+    switch (cachedPrimaryPointer._tag) {
+      case "None":
+        cache = {};
+        cache[curr.id] = curr;
+        break;
+      case "Some":
+        if (curr.isPrimary && curr.id > cachedPrimaryPointer.value.id) {
+          cache = {};
+          cache[curr.id] = curr;
+        } else {
+          cache[curr.id] = curr;
+        }
+        break;
+    }
+    return cache;
+  }, {} as Record<number, DraggingRtrn>)
+);
+
+const verticalswipe$ = dragging$.pipe(
   filter(({ dx, dy }) => Math.abs(dy) >= Math.abs(dx) && Math.abs(dy) >= 0.3)
 );
 
-const horizontallyDragging$ = dragging$.pipe(
+const horizontalswipe$ = dragging$.pipe(
   filter(({ dx, dy }) => Math.abs(dy) <= Math.abs(dx) && Math.abs(dy) >= 0.3)
 );
 
-dragging$.subscribe(console.log);
+// const pinch$ =
+
+// const pan$ =
+
+// const press$ =
+
+// const rotate$ =
+
+// const tap$ =
+
 // clickdistance$.subscribe((v) => console.log(`click distance ${v}`));
 // verticallyDragging$.subscribe((v) => console.log(`vertically dragging: ${v}`));
 // horizontallyDragging$.subscribe((v) =>
@@ -168,3 +216,5 @@ dragging$.subscribe(console.log);
 // }: PointerEvent) => {
 
 // };
+
+multitouch$.subscribe(console.log);
