@@ -170,14 +170,14 @@ const multitouch$ = dragging$.pipe(
     new LRUCache<string, TouchingPointer>({
       maxSize: 3,
       entryExpirationTimeInMS: 5000,
-      onEntryEvicted: ({ key, value, isExpired }) =>
-        console.log(
-          `Entry with key ${key} and value ${value} was evicted from the cache. Expired: ${isExpired}`
-        ),
-      onEntryMarkedAsMostRecentlyUsed: ({ key, value }) =>
-        console.log(
-          `Entry with key ${key} and value ${value} was just marked as most recently used.`
-        ),
+      // onEntryEvicted: ({ key, value, isExpired }) =>
+      //   console.log(
+      //     `Entry with key ${key} and value ${value} was evicted from the cache. Expired: ${isExpired}`
+      //   ),
+      // onEntryMarkedAsMostRecentlyUsed: ({ key, value }) =>
+      //   console.log(
+      //     `Entry with key ${key} and value ${value} was just marked as most recently used.`
+      //   ),
     })
   ),
   map((cache) => {
