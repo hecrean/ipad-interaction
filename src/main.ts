@@ -1,5 +1,5 @@
 import "./style.css";
-import { vec2 } from "gl-matrix";
+import { vec2, vec3 } from "gl-matrix";
 
 import { findFirst, Predicate } from "./utils";
 import {
@@ -198,7 +198,11 @@ const centroid = (arr: Array<TouchingPointer>) => {
   return vec2.fromValues(xMean / len, yMean / len);
 };
 
-const direction = (arr: Array<TouchingPointer>) => {
+type PointerTrajectory = {
+  r: vec2;
+  dr: vec2;
+};
+const direction = (arr: Array<TouchingPointer>): Array<PointerTrajectory> => {
   const c = centroid(arr);
 
   return arr.map((a) => ({
@@ -211,7 +215,15 @@ const direction = (arr: Array<TouchingPointer>) => {
   }));
 };
 
+const cross = ({ r, dr }: PointerTrajectory) =>
+  vec2.cross(vec3.create(), r, vec2.add(vec2.create(), r, dr));
+
+const dot = ({ r, dr }: PointerTrajectory) =>
+  vec2.dot(r, vec2.add(vec2.create(), r, dr));
+
 const pointerstrajectory$ = multitouch$.pipe(map(direction));
+const cross$ = pointerstrajectory$.pipe(map((arr) => arr.map(cross)));
+const dot$ = pointerstrajectory$.pipe(map((arr) => arr.map(dot)));
 
 // const pan$ =
 
@@ -240,4 +252,5 @@ const pointerstrajectory$ = multitouch$.pipe(map(direction));
 
 // };
 
-pointerstrajectory$.subscribe(console.log);
+dot$.subscribe(console.log);
+cross$.subscribe(console.log);
