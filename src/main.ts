@@ -163,10 +163,8 @@ const cacheApi = {
   },
   flush: (cache: Map<string, DraggingRtrn>) => {
     const keys = Array.from(cache.keys()).filter((k) => k !== "primary");
-    const tail = <T>(arr: Array<T>) => arr.slice(3, -1);
-    const keysToBeDeleted = tail(
-      keys.sort((a, b) => parseInt(a) - parseInt(b))
-    );
+    const tail = <T>(arr: Array<T>) => arr.slice(0, 3);
+    const keysToBeDeleted = tail(keys.sort((a, b) => +a - +b));
     keysToBeDeleted.map((k) => cache.delete(k));
   },
 };
@@ -174,7 +172,7 @@ const cacheApi = {
 const multitouch$ = dragging$.pipe(
   scan((cache, curr) => {
     cacheApi.set(curr.id, curr, cache);
-    cacheApi.flush(cache);
+    // cacheApi.flush(cache);
     return cache;
   }, new Map<string, DraggingRtrn>())
 );
