@@ -252,5 +252,8 @@ const dot$ = pointerstrajectory$.pipe(map((arr) => arr.map(dot)));
 
 // };
 
-dot$.pipe(buffer(scissor$)).subscribe((v) => console.log("dot", v));
+const date = new Date();
+dot$
+  .pipe(buffer(scissor$))
+  .subscribe((v) => console.log("sample (500ms):", date.getTime(), v));
 // cross$.subscribe((v) => console.log("cross", v));
