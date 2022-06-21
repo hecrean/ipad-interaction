@@ -30,6 +30,7 @@ import {
   share,
   startWith,
 } from "rxjs/operators";
+import { LRUCache } from "./cache";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
@@ -155,26 +156,26 @@ const twotaps$ = pointerdown$.pipe(
   })
 );
 
-const cacheApi = {
-  set: (key: number, value: DraggingRtrn, cache: Map<string, DraggingRtrn>) => {
-    value.isPrimary
-      ? cache.set("primary", value)
-      : cache.set(key.toString(), value);
-  },
-  flush: (cache: Map<string, DraggingRtrn>) => {
-    const keys = Array.from(cache.keys()).filter((k) => k !== "primary");
-    const tail = <T>(arr: Array<T>) => arr.slice(0, 3);
-    const keysToBeDeleted = tail(keys.sort((a, b) => +a - +b));
-    keysToBeDeleted.map((k) => cache.delete(k));
-  },
-};
+// const cacheApi = {
+//   set: (key: number, value: DraggingRtrn, cache: Map<string, DraggingRtrn>) => {
+//     value.isPrimary
+//       ? cache.set("primary", value)
+//       : cache.set(key.toString(), value);
+//   },
+//   flush: (cache: Map<string, DraggingRtrn>) => {
+//     const keys = Array.from(cache.keys()).filter((k) => k !== "primary");
+//     const tail = <T>(arr: Array<T>) => arr.slice(0, 3);
+//     const keysToBeDeleted = tail(keys.sort((a, b) => +a - +b));
+//     keysToBeDeleted.map((k) => cache.delete(k));
+//   },
+// };
 
 const multitouch$ = dragging$.pipe(
   scan((cache, curr) => {
-    cacheApi.set(curr.id, curr, cache);
-    // cacheApi.flush(cache);
+    const key = curr.isPrimary ? "primary" : `${curr.id}`;
+    cache.set(key, curr);
     return cache;
-  }, new Map<string, DraggingRtrn>())
+  }, new LRUCache<string, DraggingRtrn>({ maxSize: 10 }))
 );
 
 const verticalswipe$ = dragging$.pipe(
