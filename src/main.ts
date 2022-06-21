@@ -171,11 +171,25 @@ const twotaps$ = pointerdown$.pipe(
 // };
 
 const multitouch$ = dragging$.pipe(
-  scan((cache, curr) => {
-    const key = curr.isPrimary ? "primary" : `${curr.id}`;
-    cache.set(key, curr);
-    return cache;
-  }, new LRUCache<string, DraggingRtrn>({ maxSize: 10 }))
+  scan(
+    (cache, curr) => {
+      const key = curr.isPrimary ? "primary" : `${curr.id}`;
+      cache.set(key, curr);
+      return cache;
+    },
+    new LRUCache<string, DraggingRtrn>({
+      maxSize: 10,
+      entryExpirationTimeInMS: 2000,
+      onEntryEvicted: ({ key, value, isExpired }) =>
+        console.log(
+          `Entry with key ${key} and value ${value} was evicted from the cache. Expired: ${isExpired}`
+        ),
+      onEntryMarkedAsMostRecentlyUsed: ({ key, value }) =>
+        console.log(
+          `Entry with key ${key} and value ${value} was just marked as most recently used.`
+        ),
+    })
+  )
 );
 
 const verticalswipe$ = dragging$.pipe(
@@ -215,4 +229,4 @@ const horizontalswipe$ = dragging$.pipe(
 
 // };
 
-multitouch$.subscribe(console.log);
+multitouch$.subscribe((t) => console.log(t.newest));
