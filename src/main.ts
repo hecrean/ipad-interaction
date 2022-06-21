@@ -155,36 +155,28 @@ const twotaps$ = pointerdown$.pipe(
   })
 );
 
+const cacheApi = {
+  set: (key: number, value: DraggingRtrn, cache: Map<string, DraggingRtrn>) => {
+    value.isPrimary
+      ? cache.set("primary", value)
+      : cache.set(key.toString(), value);
+  },
+  flush: (cache: Map<string, DraggingRtrn>) => {
+    const keys = Array.from(cache.keys()).filter((k) => k !== "primary");
+    const tail = <T>(arr: Array<T>) => arr.slice(3, -1);
+    const keysToBeDeleted = tail(
+      keys.sort((a, b) => parseInt(a) - parseInt(b))
+    );
+    keysToBeDeleted.map((k) => cache.delete(k));
+  },
+};
+
 const multitouch$ = dragging$.pipe(
   scan((cache, curr) => {
-    // primary pointer is our pivot point. We reset each time this is taken up
-    const cacheHasAPrimayPointer: Predicate<DraggingRtrn> = (a) => a.isPrimary;
-    const cachedPrimaryPointer = findFirst(cacheHasAPrimayPointer)(
-      Object.values(cache)
-    );
-    switch (cachedPrimaryPointer._tag) {
-      case "None":
-        cache = {};
-        cache[curr.id] = curr;
-        break;
-      case "Some":
-        if (curr.isPrimary) {
-          if (curr.id === cachedPrimaryPointer.value.id) cache[curr.id] = curr;
-          if (curr.id < cachedPrimaryPointer.value.id) {
-            // cache = {};
-            // cache[curr.id] = curr;
-          }
-          if (curr.id > cachedPrimaryPointer.value.id) {
-            cache = {};
-            cache[curr.id] = curr;
-          }
-        } else {
-          cache[curr.id] = curr;
-        }
-        break;
-    }
+    cacheApi.set(curr.id, curr, cache);
+    cacheApi.flush(cache);
     return cache;
-  }, {} as Record<number, DraggingRtrn>)
+  }, new Map<string, DraggingRtrn>())
 );
 
 const verticalswipe$ = dragging$.pipe(
