@@ -229,4 +229,4 @@ const horizontalswipe$ = dragging$.pipe(
 
 // };
 
-multitouch$.subscribe((t) => console.log(t.newest));
+multitouch$.subscribe((t) => console.log(Array.from(t.values())));
