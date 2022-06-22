@@ -217,6 +217,14 @@ const trajectory = (arr: Array<TouchingPointer>): Array<PointerTrajectory> => {
 
 const pointerstrajectory$ = multitouch$.pipe(map(trajectory));
 
+const lengthChange = ({ r, dr }: PointerTrajectory) =>
+  vec3.length(vec3.add(vec3.create(), r, dr)) - vec3.length(r);
+
+const pinch$ = pointerstrajectory$.pipe(
+  map((arr) => arr.map(lengthChange)),
+  map(sum)
+);
+
 const cross = ({ r, dr }: PointerTrajectory) =>
   vec3.cross(vec3.create(), r, vec3.add(vec3.create(), r, dr));
 
@@ -262,9 +270,8 @@ const rotation$ = cross$.pipe(map(sumVec3));
 
 // };
 
-dot$.pipe(buffer(scissor$)).subscribe((v) => console.log("sample (500ms):", v));
-rotation$
-  .pipe(buffer(scissor$))
-  .subscribe((v) => console.log("sample (500ms):", v));
+dot$.pipe(buffer(scissor$)).subscribe((v) => console.log("dot:", v));
+rotation$.pipe(buffer(scissor$)).subscribe((v) => console.log("rotation:", v));
+pinch$.pipe(buffer(scissor$)).subscribe((v) => console.log("pinch", v));
 
 // cross$.subscribe((v) => console.log("cross", v));
