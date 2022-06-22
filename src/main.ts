@@ -167,8 +167,8 @@ const printRot = ({ rotation, center }: HammerInput) => {
 };
 
 pan$.subscribe((input) => {
-  console.log(input);
-  // printDir(input);
+  printDir(input);
+  printRot(input);
 });
 
 // pinch$.subscribe(console.log);
