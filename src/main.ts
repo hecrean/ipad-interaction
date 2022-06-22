@@ -202,7 +202,7 @@ type PointerTrajectory = {
   r: vec2;
   dr: vec2;
 };
-const direction = (arr: Array<TouchingPointer>): Array<PointerTrajectory> => {
+const trajectory = (arr: Array<TouchingPointer>): Array<PointerTrajectory> => {
   const c = centroid(arr);
 
   return arr.map((a) => ({
@@ -215,14 +215,24 @@ const direction = (arr: Array<TouchingPointer>): Array<PointerTrajectory> => {
   }));
 };
 
+const pointerstrajectory$ = multitouch$.pipe(map(trajectory));
+
 const cross = ({ r, dr }: PointerTrajectory) =>
   vec2.cross(vec3.create(), r, vec2.add(vec2.create(), r, dr));
 
 const dot = ({ r, dr }: PointerTrajectory) =>
   vec2.dot(r, vec2.add(vec2.create(), r, dr));
 
-const pointerstrajectory$ = multitouch$.pipe(map(direction));
 const cross$ = pointerstrajectory$.pipe(map((arr) => arr.map(cross)));
+
+const sumVec3 = (arr: Array<vec3>) => {
+  let sum: vec3 = vec3.create();
+  for (let v of arr) {
+    vec3.add(sum, sum, v);
+  }
+  return sum;
+};
+const rotation$ = cross$.pipe(map(sumVec3));
 const dot$ = pointerstrajectory$.pipe(map((arr) => arr.map(dot)));
 
 // const pan$ =
@@ -253,4 +263,8 @@ const dot$ = pointerstrajectory$.pipe(map((arr) => arr.map(dot)));
 // };
 
 dot$.pipe(buffer(scissor$)).subscribe((v) => console.log("sample (500ms):", v));
+rotation$
+  .pipe(buffer(scissor$))
+  .subscribe((v) => console.log("sample (500ms):", v));
+
 // cross$.subscribe((v) => console.log("cross", v));
