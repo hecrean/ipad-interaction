@@ -1,5 +1,5 @@
 import "./style.css";
-import { vec2, vec3 } from "gl-matrix";
+import { vec3, vec3 } from "gl-matrix";
 
 import { findFirst, Predicate } from "./utils";
 import {
@@ -195,35 +195,36 @@ const centroid = (arr: Array<TouchingPointer>) => {
   const xMean = sum(arr.map((arr) => arr.x));
   const yMean = sum(arr.map((arr) => arr.y));
   const len = arr.length;
-  return vec2.fromValues(xMean / len, yMean / len);
+  return vec3.fromValues(xMean / len, yMean / len, 0);
 };
 
 type PointerTrajectory = {
-  r: vec2;
-  dr: vec2;
+  r: vec3;
+  dr: vec3;
 };
 const trajectory = (arr: Array<TouchingPointer>): Array<PointerTrajectory> => {
   const c = centroid(arr);
 
   return arr.map((a) => ({
-    r: vec2.add(
-      vec2.create(),
-      vec2.mul(vec2.create(), c, vec2.fromValues(-1, -1)),
-      vec2.fromValues(a.x, a.y)
+    r: vec3.add(
+      vec3.create(),
+      vec3.mul(vec3.create(), c, vec3.fromValues(-1, -1, -1)),
+      vec3.fromValues(a.x, a.y, 0)
     ),
-    dr: vec2.fromValues(a.dx, a.dy),
+    dr: vec3.fromValues(a.dx, a.dy, 0),
   }));
 };
 
 const pointerstrajectory$ = multitouch$.pipe(map(trajectory));
 
 const cross = ({ r, dr }: PointerTrajectory) =>
-  vec2.cross(vec3.create(), r, vec2.add(vec2.create(), r, dr));
+  vec3.cross(vec3.create(), r, vec3.add(vec3.create(), r, dr));
 
 const dot = ({ r, dr }: PointerTrajectory) =>
-  vec2.dot(r, vec2.add(vec2.create(), r, dr));
+  vec3.dot(r, vec3.add(vec3.create(), r, dr));
 
 const cross$ = pointerstrajectory$.pipe(map((arr) => arr.map(cross)));
+const dot$ = pointerstrajectory$.pipe(map((arr) => arr.map(dot)));
 
 const sumVec3 = (arr: Array<vec3>) => {
   let sum: vec3 = vec3.create();
@@ -233,7 +234,6 @@ const sumVec3 = (arr: Array<vec3>) => {
   return sum;
 };
 const rotation$ = cross$.pipe(map(sumVec3));
-const dot$ = pointerstrajectory$.pipe(map((arr) => arr.map(dot)));
 
 // const pan$ =
 
