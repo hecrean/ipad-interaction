@@ -1,5 +1,5 @@
 import "./style.css";
-import { vec3, vec3 } from "gl-matrix";
+import { vec3 } from "gl-matrix";
 
 import { findFirst, Predicate } from "./utils";
 import {
@@ -34,6 +34,7 @@ import {
   throttle,
 } from "rxjs/operators";
 import { LRUCache } from "./cache";
+import Hammer from "hammerjs";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
@@ -42,6 +43,95 @@ app.innerHTML = /*html*/ `
 `;
 
 const canvasEl = app.querySelector("canvas")!;
+
+const hammerTap = new Hammer(canvasEl, {
+  recognizers: [[Hammer.Tap, { taps: 4 }]],
+});
+
+const tap$ = fromEvent(hammerTap, "tap").pipe(share());
+
+const hammerPan = new Hammer(canvasEl, {
+  recognizers: [
+    [
+      Hammer.Pan,
+      {
+        event: "pan",
+        pointers: 1,
+        threshold: 10,
+        direction: Hammer.DIRECTION_ALL,
+      },
+    ],
+  ],
+});
+
+const pan$ = fromEvent(hammerPan, "pan").pipe(share());
+
+const hammerPinch = new Hammer(canvasEl, {
+  recognizers: [
+    [
+      Hammer.Pinch,
+      {
+        event: "pinch",
+        pointers: 2,
+        threshold: 0,
+      },
+    ],
+  ],
+});
+const pinch$ = fromEvent(hammerPinch, "pinch").pipe(share());
+
+const hammerPress = new Hammer(canvasEl, {
+  recognizers: [
+    [
+      Hammer.Press,
+      {
+        event: "press",
+        pointers: 1,
+        threshold: 9,
+        time: 251,
+      },
+    ],
+  ],
+});
+const press$ = fromEvent(hammerPress, "press").pipe(share());
+
+const hammerRotate = new Hammer(canvasEl, {
+  recognizers: [
+    [
+      Hammer.Rotate,
+      {
+        event: "rotate",
+        pointers: 2,
+        threshold: 0,
+      },
+    ],
+  ],
+});
+const rotate$ = fromEvent(hammerRotate, "rotate").pipe(share());
+
+const hammerSwipe = new Hammer(canvasEl, {
+  recognizers: [
+    [
+      Hammer.Swipe,
+      {
+        event: "swipe",
+        pointers: 1,
+        threshold: 10,
+        direction: Hammer.DIRECTION_ALL,
+        velocity: 0.3,
+      },
+    ],
+  ],
+});
+const swipe$ = fromEvent(hammerSwipe, "swipe").pipe(share());
+
+pan$.subscribe(console.log);
+pinch$.subscribe(console.log);
+press$.subscribe(console.log);
+rotate$.subscribe(console.log);
+swipe$.subscribe(console.log);
+tap$.subscribe(console.log);
+////
 
 // utils:
 const clamp = (num: number, min: number, max: number) =>
@@ -222,7 +312,7 @@ const pointerstrajectory$ = multitouch$.pipe(map(trajectory));
 const lengthChange = ({ r, dr }: PointerTrajectory) =>
   vec3.length(vec3.add(vec3.create(), r, dr)) - vec3.length(r);
 
-const pinch$ = pointerstrajectory$.pipe(
+const pinch_$ = pointerstrajectory$.pipe(
   map((arr) => arr.map(lengthChange)),
   map(sum)
 );
@@ -272,8 +362,8 @@ const rotation$ = cross$.pipe(map(sumVec3));
 
 // };
 
-dot$.pipe(buffer(scissor$)).subscribe((v) => console.log("dot:", v));
-rotation$.pipe(buffer(scissor$)).subscribe((v) => console.log("rotation:", v));
-pinch$.pipe(buffer(scissor$)).subscribe((v) => console.log("pinch", v));
+// dot$.pipe(buffer(scissor$)).subscribe((v) => console.log("dot:", v));
+// rotation$.pipe(buffer(scissor$)).subscribe((v) => console.log("rotation:", v));
+// pinch_$.pipe(buffer(scissor$)).subscribe((v) => console.log("pinch", v));
 
 // cross$.subscribe((v) => console.log("cross", v));
