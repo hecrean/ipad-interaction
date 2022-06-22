@@ -31,6 +31,7 @@ import {
   share,
   startWith,
   reduce,
+  throttle,
 } from "rxjs/operators";
 import { LRUCache } from "./cache";
 
@@ -102,6 +103,7 @@ const doubletap$ = pointerdown$.pipe(
 );
 
 const dragging$ = pointerdown$.pipe(
+  throttle(() => interval(1000)),
   tap((e) => e.preventDefault()),
   switchMap((pointerdownEv) =>
     pointermove$.pipe(
