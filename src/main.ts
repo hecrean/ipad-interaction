@@ -14,8 +14,12 @@ import {
   combineLatest,
   timer,
   interval,
+  noop,
+  merge,
 } from "rxjs";
 import {
+  take,
+  mergeAll,
   switchMap,
   takeUntil,
   zipWith,
@@ -27,386 +31,221 @@ import {
   scan,
   takeLast,
   tap,
+  sample,
   pairwise,
   share,
   startWith,
   reduce,
   throttle,
+  takeWhile,
+  mergeWith,
+  mergeMap,
+  isEmpty,
 } from "rxjs/operators";
 import { LRUCache } from "./cache";
 import Hammer from "hammerjs";
+import { fromNullable, isSome } from "./option";
 
+const clamp = (num: number, min: number, max: number) =>
+  Math.min(Math.max(num, min), max);
+
+type UnwrapObservable<T> = T extends Observable<infer R> ? R : never;
+
+type CanvasEventName = keyof HTMLElementEventMap;
+type EventFromCanvasEventTag<K extends CanvasEventName> =
+  HTMLElementEventMap[K];
+
+type CanvasEvent<K extends CanvasEventName> = {
+  tag: K;
+  element: HTMLCanvasElement;
+  event: HTMLElementEventMap[K];
+};
+
+const canvasObservable = <K extends CanvasEventName>(
+  canvasEl: HTMLCanvasElement,
+  tag: K
+): Observable<CanvasEvent<K>> => {
+  return fromEvent<EventFromCanvasEventTag<K>>(canvasEl, tag).pipe(
+    map((ev) => ({ tag: tag, element: canvasEl, event: ev }))
+  );
+};
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
 app.innerHTML = /*html*/ `
-<canvas>
-`;
+<div class='canvases_container'>
+<div class='canvas_proxy'>
+  <canvas class='webgl_renderer_canvas'/>
+</div>
+</div>`;
 
-const canvasEl = app.querySelector("canvas")!;
+let canvasEl = app.querySelector<HTMLCanvasElement>(".webgl_renderer_canvas")!;
+console.log(canvasEl);
+let containerEl = app.querySelector<HTMLDivElement>(".canvases_container")!;
 
-const hammerTap = new Hammer(canvasEl, {
-  recognizers: [[Hammer.Tap, { taps: 4 }]],
-});
+canvasEl.width = containerEl.clientWidth;
+canvasEl.height = containerEl.clientHeight;
 
-const tap$ = fromEvent(hammerTap, "tap").pipe(share());
+const ro = <T extends HTMLElement>(element: T): Observable<DOMRect> =>
+  new Observable((subscriber) => {
+    const resizeObserver = new ResizeObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.target === element) {
+          subscriber.next(entry.contentRect);
+        }
+      });
+    });
 
-const hammerPan = new Hammer(canvasEl, {
-  recognizers: [
-    [
-      Hammer.Pan,
-      {
-        event: "pan",
-        pointers: 1,
-        threshold: 10,
-        direction: Hammer.DIRECTION_ALL,
-      },
-    ],
-  ],
-});
+    resizeObserver.observe(element, { box: "border-box" });
 
-const pan$ = fromEvent(hammerPan, "pan").pipe(share());
+    return () => {
+      resizeObserver.unobserve(element);
+      resizeObserver.disconnect();
+    };
+  });
 
-const hammerPinch = new Hammer(canvasEl, {
-  recognizers: [
-    [
-      Hammer.Pinch,
-      {
-        event: "pinch",
-        pointers: 2,
-        threshold: 0,
-      },
-    ],
-  ],
-});
-const pinch$ = fromEvent(hammerPinch, "pinch").pipe(share());
+const containerResize$ = ro(containerEl);
 
-const hammerPress = new Hammer(canvasEl, {
-  recognizers: [
-    [
-      Hammer.Press,
-      {
-        event: "press",
-        pointers: 1,
-        threshold: 9,
-        time: 251,
-      },
-    ],
-  ],
-});
-const press$ = fromEvent(hammerPress, "press").pipe(share());
+let gl = canvasEl.getContext("2d")!;
+gl.lineWidth = 5;
 
-const hammerRotate = new Hammer(canvasEl, {
-  recognizers: [
-    [
-      Hammer.Rotate,
-      {
-        event: "rotate",
-        pointers: 2,
-        threshold: 0,
-      },
-    ],
-  ],
-});
-const rotate$ = fromEvent(hammerRotate, "rotate").pipe(share());
+const containerElResize$ = fromEvent<HTMLElementEventMap["resize"]>(
+  containerEl,
+  "resize"
+).pipe(share());
 
-const hammerSwipe = new Hammer(canvasEl, {
-  recognizers: [
-    [
-      Hammer.Swipe,
-      {
-        event: "swipe",
-        pointers: 1,
-        threshold: 10,
-        direction: Hammer.DIRECTION_ALL,
-        velocity: 0.3,
-      },
-    ],
-  ],
-});
+const pointerdown$ = canvasObservable(canvasEl, "pointerdown").pipe(share());
+const pointerup$ = canvasObservable(canvasEl, "pointerup").pipe(share());
+const pointermove$ = canvasObservable(canvasEl, "pointermove").pipe(share());
+const pointerover$ = canvasObservable(canvasEl, "pointerover");
 
-const swipe$ = fromEvent(hammerSwipe, "swipe").pipe(share());
+const ndc = ({
+  element,
+  event,
+  tag,
+}: CanvasEvent<"pointerup" | "pointerdown" | "pointermove">) => {
+  const rect = element.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
 
-const printDir = ({
-  direction,
-  distance,
-  velocityX,
-  velocityY,
-}: HammerInput) => {
-  switch (direction) {
-    case Hammer.DIRECTION_NONE:
-      console.log("no direction");
-      console.log(distance);
-      console.log(velocityX, velocityY);
-
-      break;
-    case Hammer.DIRECTION_LEFT:
-      console.log("pan-left");
-      console.log(distance);
-      console.log(velocityX, velocityY);
-      break;
-    case Hammer.DIRECTION_RIGHT:
-      console.log("pan-right");
-      console.log(distance);
-      console.log(velocityX, velocityY);
-      break;
-    case Hammer.DIRECTION_UP:
-      console.log("pan-up");
-      console.log(distance);
-      console.log(velocityX, velocityY);
-      break;
-    case Hammer.DIRECTION_DOWN:
-      console.log("pan-dowb");
-      console.log(distance);
-      console.log(velocityX, velocityY);
-      break;
-  }
+  return {
+    x_ndc: (x / rect.width) * 2 - 1,
+    y_ndc: (y / rect.height) * -2 + 1,
+    x: x,
+    y: y,
+  };
 };
 
-const printRot = ({ rotation, center }: HammerInput) => {
-  console.log("center: ", center, "rotation: ", rotation);
+const pointerComparisonFn = (
+  pointer1: CanvasEvent<"pointerup" | "pointerdown" | "pointermove">,
+  pointer2: CanvasEvent<"pointerup" | "pointerdown" | "pointermove">
+) => {
+  const { x_ndc: x1_ndc, y_ndc: y1_ndc, x: x1, y: y1 } = ndc(pointer1);
+  const { x_ndc: x2_ndc, y_ndc: y2_ndc, x: x2, y: y2 } = ndc(pointer2);
+  return {
+    id: pointer1.event.pointerId,
+    isPrimary: pointer1.event.isPrimary,
+    type: pointer1.event.pointerType,
+    dt: pointer2.event.timeStamp - pointer1.event.timeStamp,
+    dP1: pointer2.event.pressure - pointer1.event.pressure,
+    dP2: pointer2.event.tangentialPressure - pointer1.event.tangentialPressure,
+    dA:
+      pointer2.event.width * pointer2.event.height -
+      pointer1.event.width * pointer1.event.height,
+    //from left
+    dx: x2_ndc - x1_ndc,
+    // from top
+    dy: y2_ndc - y1_ndc,
+    x: x2,
+    y: y2,
+  };
 };
 
-pan$.subscribe((input) => {
-  printDir(input);
-  printRot(input);
+type PointerComparison = ReturnType<typeof pointerComparisonFn>;
+
+const dragging$ = pointerdown$.pipe(
+  switchMap((down) =>
+    pointermove$.pipe(
+      tap((move) => move.event.preventDefault()),
+      filter((move) => move.event.pointerId === down.event.pointerId),
+      map((move) => pointerComparisonFn(down, move)),
+      takeUntil(
+        pointerup$.pipe(
+          filter((up) => up.event.pointerId === down.event.pointerId)
+        )
+      )
+    )
+  ),
+  // sample(interval(200)),
+  tap({
+    subscribe: () => console.log(`${name}: subscribed`),
+    next: (value) => console.log(`${name}`, value.x, value.y),
+    complete: () => console.log(`${name}: completed`),
+    finalize: () => console.log(`${name}: unsubscribed`),
+  })
+);
+
+const activePointers$ = pointerdown$.pipe(
+  scan((cache, down) => {
+    cache.set(`${down.event.pointerId}`, down);
+    return cache;
+  }, new Map<string, CanvasEvent<"pointerdown">>())
+);
+
+const pointerCache$ = pointerup$.pipe(mergeWith(pointerdown$)).pipe(
+  scan((cache, o) => {
+    switch (o.tag) {
+      case "pointerdown":
+        cache.set(`${o.event.pointerId}`, o);
+        return cache;
+      case "pointerup":
+        cache.delete(`${o.event.pointerId}`);
+        return cache;
+    }
+  }, new Map<string, CanvasEvent<"pointerdown">>())
+);
+
+const multitpointer$ = combineLatest([pointerCache$, pointermove$]).pipe(
+  map(
+    ([cache, move]): [
+      CanvasEvent<"pointerdown"> | undefined,
+      CanvasEvent<"pointermove">
+    ] => [cache.get(`${move.event.pointerId}`), move]
+  ),
+  filter(
+    (
+      deviation
+    ): deviation is [CanvasEvent<"pointerdown">, CanvasEvent<"pointermove">] =>
+      !!deviation[0]
+  ),
+  map(([i, f]) => pointerComparisonFn(i, f))
+);
+
+containerResize$.subscribe((ev) => {
+  canvasEl.width = ev.width;
+  canvasEl.height = ev.height;
 });
 
-// pinch$.subscribe(console.log);
-// press$.subscribe(console.log);
-// rotate$.subscribe(console.log);
-// swipe$.subscribe(console.log);
-// tap$.subscribe(console.log);
+gl.beginPath();
 
-// const clamp = (num: number, min: number, max: number) =>
-//   Math.min(Math.max(num, min), max);
+// dragging$.subscribe(({ x, y }) => {
+//   gl.beginPath();
+//   gl.arc(x, y, 5, 0, 2 * Math.PI, false);
+//   gl.closePath();
+//   gl.fillStyle = `rgba(14, 255, 255, 1)`;
+//   gl.fill();
+// });
 
-// const ndc = (ev: PointerEvent): { x: number; y: number } => {
-//   const el = ev.target as HTMLElement;
-//   const rect = el.getBoundingClientRect();
-//   const x = ev.clientX - rect.left;
-//   const y = ev.clientY - rect.top;
+const remap = (x: number) => Math.abs(Math.atan(x) / (Math.PI / 2));
 
-//   return { x: (x / el.clientWidth) * 2 - 1, y: (y / el.clientHeight) * -2 + 1 };
-// };
+multitpointer$.subscribe(({ x, y, dx, dy, dP1, dA, dt }) => {
+  gl.beginPath();
+  gl.arc(x, y, 5, 0, 2 * Math.PI, false);
+  gl.closePath();
 
-// interface Interaction {
-//   pointerdown: PointerEvent;
-//   pointerup: PointerEvent;
-//   pointermove: PointerEvent;
-//   pointerover: PointerEvent;
-//   wheel: WheelEvent;
-//   doubleclick: [clickOne: PointerEvent, clickTwo: PointerEvent];
-//   drag: { dx: number; dy: number };
-// }
-// // observables:
+  const fillColor = `rgba(${remap(dx) * 255}, ${remap(dy) * 255}, ${
+    100 * remap(dt * 10)
+  }, ${clamp(remap(dA * dP1 * 20), 0.7, 1)})`;
 
-// // -- time :
-// const scissor$ = interval(500);
-// const relativeTime$: Observable<[Date, Date]> = interval(1000).pipe(
-//   map(() => new Date()),
-//   share(),
-//   startWith(new Date()),
-//   pairwise()
-// );
-
-// const pointerdown$ = fromEvent<HTMLElementEventMap["pointerdown"]>(
-//   canvasEl,
-//   "pointerdown"
-// );
-// const pointerup$ = fromEvent<HTMLElementEventMap["pointerup"]>(
-//   canvasEl,
-//   "pointerup"
-// );
-// const pointermove$ = fromEvent<HTMLElementEventMap["pointermove"]>(
-//   canvasEl,
-//   "pointermove"
-// );
-
-// const pointerover$ = fromEvent<HTMLElementEventMap["pointerover"]>(
-//   canvasEl,
-//   "pointerover"
-// );
-
-// const wheel$ = fromEvent<HTMLElementEventMap["wheel"]>(canvasEl, "wheel");
-
-// const doubletap$ = pointerdown$.pipe(
-//   buffer(pointerdown$.pipe(throttleTime(250))),
-//   // if array is greater than 1, double click occured
-//   filter((clickArray) => clickArray.length > 1)
-// );
-
-// const dragging$ = pointerdown$.pipe(
-//   throttle(() => interval(1000)),
-//   tap((e) => e.preventDefault()),
-//   switchMap((pointerdownEv) =>
-//     pointermove$.pipe(
-//       filter(
-//         (pointermoveEv) => pointerdownEv.pointerId === pointermoveEv.pointerId
-//       ),
-//       map((pointermoveEv) => {
-//         const { x: x1, y: y1 } = ndc(pointerdownEv);
-//         const { x: x2, y: y2 } = ndc(pointermoveEv);
-
-//         //integrate the pressure and touch contact area over time ?
-
-//         return {
-//           id: pointerdownEv.pointerId,
-//           isPrimary: pointerdownEv.isPrimary,
-//           type: pointerdownEv.pointerType,
-//           dt: pointermoveEv.timeStamp - pointerdownEv.timeStamp,
-//           dP1: pointermoveEv.pressure - pointerdownEv.pressure,
-//           dP2:
-//             pointermoveEv.tangentialPressure - pointerdownEv.tangentialPressure,
-//           dA:
-//             pointermoveEv.width * pointermoveEv.height -
-//             pointerdownEv.width * pointerdownEv.height,
-//           dx: x2 - x1,
-//           dy: y2 - y1,
-//           x: x1,
-//           y: y1,
-//         };
-//       }),
-//       takeUntil(pointerup$)
-//     )
-//   )
-// );
-
-// const verticalswipe$ = dragging$.pipe(
-//   filter(({ dx, dy }) => Math.abs(dy) >= Math.abs(dx) && Math.abs(dy) >= 0.3)
-// );
-
-// const horizontalswipe$ = dragging$.pipe(
-//   filter(({ dx, dy }) => Math.abs(dy) <= Math.abs(dx) && Math.abs(dy) >= 0.3)
-// );
-
-// const twotaps$ = pointerdown$.pipe(
-//   map(ndc),
-//   pairwise(),
-//   map(([first, second]) => {
-//     const x0 = first.x;
-//     const y0 = first.y;
-//     const x1 = second.x;
-//     const y1 = second.y;
-//     return Math.sqrt(Math.pow(x0 - x1, 2) + Math.pow(y0 - y1, 2));
-//   })
-// );
-
-// type UnwrapObservable<T> = T extends Observable<infer R> ? R : never;
-
-// type TouchingPointer = UnwrapObservable<typeof dragging$>;
-
-// const multitouch$ = dragging$.pipe(
-//   scan(
-//     (cache, curr) => {
-//       const key = curr.isPrimary ? "primary" : `${curr.id}`;
-//       cache.set(key, curr);
-//       return cache;
-//     },
-//     new LRUCache<string, TouchingPointer>({
-//       maxSize: 3,
-//       entryExpirationTimeInMS: 5000,
-//       // onEntryEvicted: ({ key, value, isExpired }) =>
-//       //   console.log(
-//       //     `Entry with key ${key} and value ${value} was evicted from the cache. Expired: ${isExpired}`
-//       //   ),
-//       // onEntryMarkedAsMostRecentlyUsed: ({ key, value }) =>
-//       //   console.log(
-//       //     `Entry with key ${key} and value ${value} was just marked as most recently used.`
-//       //   ),
-//     })
-//   ),
-//   map((cache) => {
-//     const array: Array<TouchingPointer> = [];
-//     for (const el of cache.entries()) {
-//       array.push(el.value);
-//     }
-//     return array;
-//   })
-// );
-
-// const sum = (arr: Array<number>) => arr.reduce((a, b) => a + b, 0);
-
-// const centroid = (arr: Array<TouchingPointer>) => {
-//   const xMean = sum(arr.map((arr) => arr.x));
-//   const yMean = sum(arr.map((arr) => arr.y));
-//   const len = arr.length;
-//   return vec3.fromValues(xMean / len, yMean / len, 0);
-// };
-
-// type PointerTrajectory = {
-//   r: vec3;
-//   dr: vec3;
-// };
-// const trajectory = (arr: Array<TouchingPointer>): Array<PointerTrajectory> => {
-//   const c = centroid(arr);
-
-//   return arr.map((a) => ({
-//     r: vec3.add(
-//       vec3.create(),
-//       vec3.mul(vec3.create(), c, vec3.fromValues(-1, -1, -1)),
-//       vec3.fromValues(a.x, a.y, 0)
-//     ),
-//     dr: vec3.fromValues(a.dx, a.dy, 0),
-//   }));
-// };
-
-// const pointerstrajectory$ = multitouch$.pipe(map(trajectory));
-
-// const lengthChange = ({ r, dr }: PointerTrajectory) =>
-//   vec3.length(vec3.add(vec3.create(), r, dr)) - vec3.length(r);
-
-// const pinch_$ = pointerstrajectory$.pipe(
-//   map((arr) => arr.map(lengthChange)),
-//   map(sum)
-// );
-
-// const cross = ({ r, dr }: PointerTrajectory) =>
-//   vec3.cross(vec3.create(), r, vec3.add(vec3.create(), r, dr));
-
-// const dot = ({ r, dr }: PointerTrajectory) =>
-//   vec3.dot(r, vec3.add(vec3.create(), r, dr));
-
-// const cross$ = pointerstrajectory$.pipe(map((arr) => arr.map(cross)));
-// const dot$ = pointerstrajectory$.pipe(map((arr) => arr.map(dot)));
-
-// const sumVec3 = (arr: Array<vec3>) => {
-//   let sum: vec3 = vec3.create();
-//   for (let v of arr) {
-//     vec3.add(sum, sum, v);
-//   }
-//   return sum;
-// };
-// const rotation$ = cross$.pipe(map(sumVec3));
-
-// const pan$ =
-
-// const press$ =
-
-// const rotate$ =
-
-// const tap$ =
-
-// clickdistance$.subscribe((v) => console.log(`click distance ${v}`));
-// verticallyDragging$.subscribe((v) => console.log(`vertically dragging: ${v}`));
-// horizontallyDragging$.subscribe((v) =>
-//   console.log(`horizontally dragging: ${v}`)
-// );
-
-// const process = ({
-//   pointerId,
-//   pointerType,
-//   pressure,
-//   tiltX,
-//   tiltY,
-//   timeStamp,
-//   width,
-//   height,
-// }: PointerEvent) => {
-
-// };
-
-// dot$.pipe(buffer(scissor$)).subscribe((v) => console.log("dot:", v));
-// rotation$.pipe(buffer(scissor$)).subscribe((v) => console.log("rotation:", v));
-// pinch_$.pipe(buffer(scissor$)).subscribe((v) => console.log("pinch", v));
-
-// cross$.subscribe((v) => console.log("cross", v));
+  gl.fillStyle = fillColor;
+  gl.fill();
+});
